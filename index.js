@@ -224,13 +224,15 @@ module.exports = {
                 await channel.send(msgOptions);
                 sent++;
             } catch (e) { break; }
-            await new Promise(r => setTimeout(r, 100));
-        }
-        activeOperations.delete(opId);
-        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
-    } catch (e) {} 
-} 
+          await new Promise(r => setTimeout(r, 100));
+    }
+    activeOperations.delete(opId);
+    try {
+        await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
+    } catch (e) {}
+}
 else if (commandName === 'ban') {
+
 
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
