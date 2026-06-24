@@ -35,19 +35,17 @@ const commands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
-        .setName('spam')
-        .setDescription('إرسال رسالة وصورة بشكل مستمر مع زر إيقاف')
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('النص المراد إرساله')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('image')
-                .setDescription('رابط الصورة')
-                .setRequired(false))
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('الروم المراد الإرسال فيه')
+   .setName('spam')
+    .setDescription('إرسال رسالة وصورة بشكل مستمر في جميع الرومات')
+    .addStringOption(option =>
+        option.setName('message')
+            .setDescription('النص المراد إرساله')
+            .setRequired(false))
+    .addStringOption(option =>
+        option.setName('image')
+            .setDescription('رابط الصورة')
+            .setRequired(false))
+
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
