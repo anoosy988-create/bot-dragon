@@ -15,11 +15,32 @@ const client = new Client({
 
 const activeOperations = new Map();
 
-const commands = [
-    new SlashCommandBuilder()
-        .setName('delete-rooms')
-        .setDescription('حذف جميع الروومات في السيرفر')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+else if (commandName === 'delete-rooms') {
+    // 1. إخبار ديسكورد أن البوت يقوم بالعملية حالياً
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+        const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
+        let deletedCount = 0;
+
+        for (const [id, channel] of channels) {
+            try {
+                await channel.delete();
+                deletedCount++;
+                // تأخير بسيط لتجنب حظر البوت (Rate Limit)
+                await new Promise(r => setTimeout(r, 500)); 
+            } catch (err) {
+                console.error(`تعذر حذف القناة: ${channel.name}`);
+            }
+        }
+
+        // 2. تعديل الرد بعد الانتهاء
+        await interaction.editReply({ content: `✅ تم حذف **${deletedCount}** قناة بنجاح.` });
+    } catch (error) {
+        await interaction.editReply({ content: '❌ حدث خطأ غير متوقع أثناء الحذف.' });
+    }
+}
+
 
     new SlashCommandBuilder()
         .setName('add-room')
