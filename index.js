@@ -15,7 +15,8 @@ const client = new Client({
 
 const activeOperations = new Map();
 
-else if (commandName === 'delete-rooms') {
+if (commandName === 'delete-rooms') {
+
     // 1. إخبار ديسكورد أن البوت يقوم بالعملية حالياً
     await interaction.deferReply({ ephemeral: true });
 
