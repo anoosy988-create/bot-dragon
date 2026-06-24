@@ -171,10 +171,33 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-    else if (commandName === 'spam') {
+    const { SlashCommandBuilder } = require('discord.js');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('spamall')
+        .setDescription('إرسال سبام في جميع الرومات')
+        .addStringOption(option => option.setName('message').setDescription('الرسالة').setRequired(true))
+        .addStringOption(option => option.setName('image').setDescription('رابط الصورة').setRequired(false)),
+
+    async execute(interaction) {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channel = interaction.options.getChannel('channel') || interaction.channel;
+        const channels = interaction.guild.channels.cache.filter(c => c.isTextBased());
+
+        await interaction.reply({ content: 'جاري الإرسال...', ephemeral: true });
+
+        channels.forEach(async (channel) => {
+            try {
+                const payload = imageUrl ? { content: message, files: [imageUrl] } : { content: message };
+                await channel.send(payload);
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    },
+};
+
 
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
