@@ -20,18 +20,19 @@ else if (commandName === 'delete-rooms') {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-        const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
-        let deletedCount = 0;
-
-        for (const [id, channel] of channels) {
-            try {
-                await channel.delete();
+        if (commandName === 'delete-rooms') {
+        await interaction.deferReply({ ephemeral: true });
+        try {
+            const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
+            let deletedCount = 0;
+            for (const [id, channel] of channels) {
+                await channel.delete().catch(() => {});
                 deletedCount++;
-                // تأخير بسيط لتجنب حظر البوت (Rate Limit)
-                await new Promise(r => setTimeout(r, 500)); 
-            } catch (err) {
-                console.error(`تعذر حذف القناة: ${channel.name}`);
+                await new Promise(r => setTimeout(r, 500));
             }
+            await interaction.editReply({ content: `✅ تم حذف **${deletedCount}** قناة.` });
+        } catch (error) {
+            await interaction.editReply({ content: '❌ حدث خطأ.' });
         }
 
         // 2. تعديل الرد بعد الانتهاء
