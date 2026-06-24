@@ -169,14 +169,17 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-        else if (commandName === 'spam') {
+      {
+        // 1. الرد الفوري لتجنب الخطأ
+        await interaction.deferReply({ flags: 64 }); 
+
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
         const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
 
         if (!message && !imageUrl) {
-            return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
-        }
+            return interaction.editReply({ content: '❌ لازم تحط نص أو صورة!' });
+        }}
 
         const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
