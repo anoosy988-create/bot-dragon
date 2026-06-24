@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const http = require('http');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -119,7 +120,7 @@ client.on('interactionCreate', async (interaction) => {
     // ===== معالجة الأزرار =====
     if (interaction.isButton()) {
         if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ ليس لديك صلاحية.', ephemeral: true });
+            return interaction.reply({ content: '❌ ليس لديك صلاحية.', flags: 64 });
         }
 
         const opId = interaction.customId.replace('stop_', '');
@@ -133,14 +134,14 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.user.id !== OWNER_ID) {
-        return interaction.reply({ content: '❌ هذا البوت خاص ولا يمكنك استخدامه.', ephemeral: true });
+        return interaction.reply({ content: '❌ هذا البوت خاص ولا يمكنك استخدامه.', flags: 64 });
     }
 
     const { commandName } = interaction;
 
     // ===== حذف جميع الروومات =====
     if (commandName === 'delete-rooms') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
         const channels = interaction.guild.channels.cache;
         let deleted = 0;
         for (const channel of channels.values()) {
@@ -168,7 +169,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إنشاء الروومات...`, components: [stopButton], ephemeral: true });
+        await interaction.reply({ content: `⚙️ جاري إنشاء الروومات...`, components: [stopButton], flags: 64 });
 
         let created = 0;
         const limit = count || Infinity;
@@ -184,7 +185,7 @@ client.on('interactionCreate', async (interaction) => {
             } catch (e) {
                 break;
             }
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 300));
         }
 
         activeOperations.delete(opId);
@@ -208,7 +209,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], ephemeral: true });
+        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], flags: 64 });
 
         let sent = 0;
         while (activeOperations.get(opId)) {
@@ -218,7 +219,7 @@ client.on('interactionCreate', async (interaction) => {
             } catch (e) {
                 break;
             }
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 100));
         }
 
         activeOperations.delete(opId);
@@ -229,7 +230,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ===== باند =====
     else if (commandName === 'ban') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
         const days = interaction.options.getInteger('days') ?? 0;
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
@@ -247,7 +248,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ===== باند جماعي =====
     else if (commandName === 'mass-ban') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
 
         try {
@@ -269,7 +270,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
         const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone');
         let deleted = 0;
@@ -282,6 +283,8 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
     }
 });
-await new Promise(r => setTimeout(r, 100));
+
+// ===== سيرفر HTTP لـ Render =====
+http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.PORT || 3000);
 
 client.login(TOKEN);
