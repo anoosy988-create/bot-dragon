@@ -203,7 +203,7 @@ module.exports = {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
         }
 
-        const opId = `spam_${interaction.id}`;
+           const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
 
         const stopButton = new ActionRowBuilder().addComponents(
@@ -224,14 +224,15 @@ module.exports = {
                 await channel.send(msgOptions);
                 sent++;
             } catch (e) { break; }
-          await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 100));
+        }
+        activeOperations.delete(opId);
+        try {
+            await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
+        } catch (e) {}
     }
-    activeOperations.delete(opId);
-    try {
-        await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
-    } catch (e) {}
-}
-else if (commandName === 'ban') {
+    else if (commandName === 'ban') {
+
 
 
         await interaction.deferReply({ flags: 64 });
