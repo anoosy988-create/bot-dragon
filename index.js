@@ -13,10 +13,8 @@ const client = new Client({
     ]
 });
 
-// لتتبع العمليات الجارية
 const activeOperations = new Map();
 
-// ===== تسجيل الأوامر =====
 const commands = [
     new SlashCommandBuilder()
         .setName('delete-rooms')
@@ -106,7 +104,6 @@ async function registerCommands(guildId) {
     }
 }
 
-// ===== البوت جاهز =====
 client.once('ready', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
     for (const guild of client.guilds.cache.values()) {
@@ -114,15 +111,12 @@ client.once('ready', async () => {
     }
 });
 
-// ===== معالجة الأوامر =====
 client.on('interactionCreate', async (interaction) => {
 
-    // ===== معالجة الأزرار =====
     if (interaction.isButton()) {
         if (interaction.user.id !== OWNER_ID) {
             return interaction.reply({ content: '❌ ليس لديك صلاحية.', flags: 64 });
         }
-
         const opId = interaction.customId.replace('stop_', '');
         if (activeOperations.has(opId)) {
             activeOperations.set(opId, false);
@@ -139,26 +133,20 @@ client.on('interactionCreate', async (interaction) => {
 
     const { commandName } = interaction;
 
-    // ===== حذف جميع الروومات =====
     if (commandName === 'delete-rooms') {
         await interaction.deferReply({ flags: 64 });
         const channels = interaction.guild.channels.cache;
         let deleted = 0;
         for (const channel of channels.values()) {
-            try {
-                await channel.delete();
-                deleted++;
-            } catch (e) {}
+            try { await channel.delete(); deleted++; } catch (e) {}
         }
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.`);
     }
 
-    // ===== إضافة روم / سبام روومات =====
     else if (commandName === 'add-room') {
         const name = interaction.options.getString('name');
         const message = interaction.options.getString('message');
         const count = interaction.options.getInteger('count');
-
         const opId = `addroom_${interaction.id}`;
         activeOperations.set(opId, true);
 
@@ -173,32 +161,21 @@ client.on('interactionCreate', async (interaction) => {
 
         let created = 0;
         const limit = count || Infinity;
-
         while (activeOperations.get(opId) && created < limit) {
             try {
-                const channel = await interaction.guild.channels.create({
-                    name: name,
-                    type: ChannelType.GuildText,
-                });
+                const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText });
                 if (message) await channel.send(message);
                 created++;
-            } catch (e) {
-                break;
-            }
+            } catch (e) { break; }
             await new Promise(r => setTimeout(r, 300));
         }
-
         activeOperations.delete(opId);
-        try {
-            await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] });
-        } catch (e) {}
+        try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-    // ===== سبام رسائل =====
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const channel = interaction.options.getChannel('channel') || interaction.channel;
-
         const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
 
@@ -213,72 +190,46 @@ client.on('interactionCreate', async (interaction) => {
 
         let sent = 0;
         while (activeOperations.get(opId)) {
-            try {
-                await channel.send(message);
-                sent++;
-            } catch (e) {
-                break;
-            }
+            try { await channel.send(message); sent++; } catch (e) { break; }
             await new Promise(r => setTimeout(r, 100));
         }
-
         activeOperations.delete(opId);
-        try {
-            await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
-        } catch (e) {}
+        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
 
-    // ===== باند =====
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
         const days = interaction.options.getInteger('days') ?? 0;
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-
         try {
-            await interaction.guild.members.ban(user, {
-                deleteMessageDays: days,
-                reason: reason,
-            });
+            await interaction.guild.members.ban(user, { deleteMessageDays: days, reason });
             await interaction.editReply(`✅ تم باند **${user.tag}** | السبب: ${reason} | حذف رسائل: ${days} يوم`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل الباند: ${e.message}`);
-        }
+        } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
     }
 
-    // ===== باند جماعي =====
     else if (commandName === 'mass-ban') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-
         try {
             const members = await interaction.guild.members.fetch();
             let banned = 0;
             for (const member of members.values()) {
                 if (member.id === interaction.user.id) continue;
                 if (member.id === client.user.id) continue;
-                try {
-                    await member.ban({ reason });
-                    banned++;
-                } catch (e) {}
+                try { await member.ban({ reason }); banned++; } catch (e) {}
             }
             await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`);
-        }
+        } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
     }
 
-    // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
         const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone');
         let deleted = 0;
         for (const role of roles.values()) {
-            try {
-                await role.delete(reason);
-                deleted++;
-            } catch (e) {}
+            try { await role.delete(reason); deleted++; } catch (e) {}
         }
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
     }
@@ -286,5 +237,10 @@ client.on('interactionCreate', async (interaction) => {
 
 // ===== سيرفر HTTP لـ Render =====
 http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.PORT || 3000);
+
+// ===== Keep Alive =====
+setInterval(() => {
+    fetch('https://bot-dragon.onrender.com').catch(() => {});
+}, 4 * 60 * 1000);
 
 client.login(TOKEN);
