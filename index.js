@@ -174,7 +174,7 @@ client.on('interactionCreate', async (interaction) => {
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channel = interaction.options.getChannel('') || interaction.channel;
+        const channel = interaction.options.getChannel('channel') || interaction.channel;
 
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
