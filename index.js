@@ -282,5 +282,6 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
     }
 });
+await new Promise(r => setTimeout(r, 100));
 
 client.login(TOKEN);
