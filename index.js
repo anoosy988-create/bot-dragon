@@ -228,9 +228,10 @@ module.exports = {
         }
         activeOperations.delete(opId);
         try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
-    }
+    } catch (e) {} 
+} 
+else if (commandName === 'ban') {
 
-    else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
         const days = interaction.options.getInteger('days') ?? 0;
