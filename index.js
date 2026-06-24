@@ -171,11 +171,10 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-    else if (commandName === 'spam') {
+        else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channel = const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
-
+        const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
 
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
@@ -191,22 +190,26 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], flags: 64 });
+        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في جميع القنوات...`, components: [stopButton], flags: 64 });
 
         let sent = 0;
         while (activeOperations.get(opId)) {
-            try {
-                const msgOptions = {};
-                if (message) msgOptions.content = message;
-                if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
-                await channel.send(msgOptions);
-                sent++;
-            } catch (e) { break; }
+            for (const [id, channel] of channels) {
+                if (!activeOperations.get(opId)) break;
+                try {
+                    const msgOptions = {};
+                    if (message) msgOptions.content = message;
+                    if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
+                    await channel.send(msgOptions);
+                    sent++;
+                } catch (e) { continue; }
+            }
             await new Promise(r => setTimeout(r, 100));
         }
         activeOperations.delete(opId);
-        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
+        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة في جميع القنوات.`, components: [] }); } catch (e) {}
     }
+
 
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
