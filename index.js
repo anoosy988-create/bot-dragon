@@ -171,39 +171,16 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-    const { SlashCommandBuilder } = require('discord.js');
-
-module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('spamall')
-        .setDescription('إرسال سبام في جميع الرومات')
-        .addStringOption(option => option.setName('message').setDescription('الرسالة').setRequired(true))
-        .addStringOption(option => option.setName('image').setDescription('رابط الصورة').setRequired(false)),
-
-    async execute(interaction) {
+    else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channels = interaction.guild.channels.cache.filter(c => c.isTextBased());
-
-        await interaction.reply({ content: 'جاري الإرسال...', ephemeral: true });
-
-        channels.forEach(async (channel) => {
-            try {
-                const payload = imageUrl ? { content: message, files: [imageUrl] } : { content: message };
-                await channel.send(payload);
-            } catch (err) {
-                console.error(err);
-            }
-        });
-    },
-};
-
+        const channel = interaction.options.getChannel('') || interaction.channel;
 
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
         }
 
-           const opId = `spam_${interaction.id}`;
+        const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
 
         const stopButton = new ActionRowBuilder().addComponents(
@@ -227,14 +204,10 @@ module.exports = {
             await new Promise(r => setTimeout(r, 100));
         }
         activeOperations.delete(opId);
-        try {
-            await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] });
-        } catch (e) {}
+        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
+
     else if (commandName === 'ban') {
-
-
-
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
         const days = interaction.options.getInteger('days') ?? 0;
