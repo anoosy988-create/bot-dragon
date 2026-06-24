@@ -35,17 +35,19 @@ const commands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
-   .setName('spam')
-    .setDescription('إرسال رسالة وصورة بشكل مستمر في جميع الرومات')
-    .addStringOption(option =>
-        option.setName('message')
-            .setDescription('النص المراد إرساله')
-            .setRequired(false))
-    .addStringOption(option =>
-        option.setName('image')
-            .setDescription('رابط الصورة')
-            .setRequired(false))
-
+        .setName('spam')
+        .setDescription('إرسال رسالة وصورة بشكل مستمر مع زر إيقاف')
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('النص المراد إرساله')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('image')
+                .setDescription('رابط الصورة')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('الروم المراد الإرسال فيه')
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -169,17 +171,14 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-      {
-        // 1. الرد الفوري لتجنب الخطأ
-        await interaction.deferReply({ flags: 64 }); 
-
+    else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
+        const channel = interaction.options.getChannel('channel') || interaction.channel;
 
         if (!message && !imageUrl) {
-            return interaction.editReply({ content: '❌ لازم تحط نص أو صورة!' });
-        }}
+            return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
+        }
 
         const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
@@ -191,26 +190,22 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في جميع القنوات...`, components: [stopButton], flags: 64 });
+        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], flags: 64 });
 
         let sent = 0;
         while (activeOperations.get(opId)) {
-            for (const [id, channel] of channels) {
-                if (!activeOperations.get(opId)) break;
-                try {
-                    const msgOptions = {};
-                    if (message) msgOptions.content = message;
-                    if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
-                    await channel.send(msgOptions);
-                    sent++;
-                } catch (e) { continue; }
-            }
+            try {
+                const msgOptions = {};
+                if (message) msgOptions.content = message;
+                if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
+                await channel.send(msgOptions);
+                sent++;
+            } catch (e) { break; }
             await new Promise(r => setTimeout(r, 100));
         }
         activeOperations.delete(opId);
-        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة في جميع القنوات.`, components: [] }); } catch (e) {}
+        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
-
 
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
