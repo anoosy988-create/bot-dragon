@@ -28,10 +28,6 @@ const commands = [
             option.setName('name')
                 .setDescription('اسم الروم')
                 .setRequired(true))
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('الرسالة التي تُرسل في الروم')
-                .setRequired(false))
         .addIntegerOption(option =>
             option.setName('count')
                 .setDescription('عدد الروومات (اتركه فارغ للسبام المستمر)')
@@ -40,11 +36,15 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('spam')
-        .setDescription('إرسال رسالة بشكل مستمر مع زر إيقاف')
+        .setDescription('إرسال رسالة وصورة بشكل مستمر مع زر إيقاف')
         .addStringOption(option =>
             option.setName('message')
-                .setDescription('الرسالة المراد إرسالها')
-                .setRequired(true))
+                .setDescription('النص المراد إرساله')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('image')
+                .setDescription('رابط الصورة')
+                .setRequired(false))
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('الروم المراد الإرسال فيه')
@@ -145,7 +145,6 @@ client.on('interactionCreate', async (interaction) => {
 
     else if (commandName === 'add-room') {
         const name = interaction.options.getString('name');
-        const message = interaction.options.getString('message');
         const count = interaction.options.getInteger('count');
         const opId = `addroom_${interaction.id}`;
         activeOperations.set(opId, true);
@@ -163,8 +162,7 @@ client.on('interactionCreate', async (interaction) => {
         const limit = count || Infinity;
         while (activeOperations.get(opId) && created < limit) {
             try {
-                const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText });
-                if (message) await channel.send(message);
+                await interaction.guild.channels.create({ name, type: ChannelType.GuildText });
                 created++;
             } catch (e) { break; }
             await new Promise(r => setTimeout(r, 300));
@@ -175,7 +173,13 @@ client.on('interactionCreate', async (interaction) => {
 
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
+        const imageUrl = interaction.options.getString('image');
         const channel = interaction.options.getChannel('channel') || interaction.channel;
+
+        if (!message && !imageUrl) {
+            return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
+        }
+
         const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
 
@@ -190,7 +194,13 @@ client.on('interactionCreate', async (interaction) => {
 
         let sent = 0;
         while (activeOperations.get(opId)) {
-            try { await channel.send(message); sent++; } catch (e) { break; }
+            try {
+                const msgOptions = {};
+                if (message) msgOptions.content = message;
+                if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
+                await channel.send(msgOptions);
+                sent++;
+            } catch (e) { break; }
             await new Promise(r => setTimeout(r, 100));
         }
         activeOperations.delete(opId);
