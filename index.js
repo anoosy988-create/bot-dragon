@@ -15,34 +15,11 @@ const client = new Client({
 
 const activeOperations = new Map();
 
-if (commandName === 'delete-rooms') {
-
-    // 1. إخبار ديسكورد أن البوت يقوم بالعملية حالياً
-    await interaction.deferReply({ ephemeral: true });
-
-    try {
-        if (commandName === 'delete-rooms') {
-        await interaction.deferReply({ ephemeral: true });
-        try {
-            const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
-            let deletedCount = 0;
-            for (const [id, channel] of channels) {
-                await channel.delete().catch(() => {});
-                deletedCount++;
-                await new Promise(r => setTimeout(r, 500));
-            }
-            await interaction.editReply({ content: `✅ تم حذف **${deletedCount}** قناة.` });
-        } catch (error) {
-            await interaction.editReply({ content: '❌ حدث خطأ.' });
-        }
-
-        // 2. تعديل الرد بعد الانتهاء
-        await interaction.editReply({ content: `✅ تم حذف **${deletedCount}** قناة بنجاح.` });
-    } catch (error) {
-        await interaction.editReply({ content: '❌ حدث خطأ غير متوقع أثناء الحذف.' });
-    }
-}
-
+const commands = [
+    new SlashCommandBuilder()
+        .setName('delete-rooms')
+        .setDescription('حذف جميع الروومات في السيرفر')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
         .setName('add-room')
@@ -59,7 +36,7 @@ if (commandName === 'delete-rooms') {
 
     new SlashCommandBuilder()
         .setName('spam')
-        .setDescription('إرسال رسالة وصورة بشكل مستمر مع زر إيقاف')
+        .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
         .addStringOption(option =>
             option.setName('message')
                 .setDescription('النص المراد إرساله')
@@ -67,10 +44,6 @@ if (commandName === 'delete-rooms') {
         .addStringOption(option =>
             option.setName('image')
                 .setDescription('رابط الصورة')
-                .setRequired(false))
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('الروم المراد الإرسال فيه')
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -156,6 +129,7 @@ client.on('interactionCreate', async (interaction) => {
 
     const { commandName } = interaction;
 
+    // ===== حذف جميع الروومات =====
     if (commandName === 'delete-rooms') {
         await interaction.deferReply({ flags: 64 });
         const channels = interaction.guild.channels.cache;
@@ -166,6 +140,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.`);
     }
 
+    // ===== إضافة روومات =====
     else if (commandName === 'add-room') {
         const name = interaction.options.getString('name');
         const count = interaction.options.getInteger('count');
@@ -194,10 +169,10 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
+    // ===== سبام في جميع الروومات =====
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-        const channel = interaction.options.getChannel('channel') || interaction.channel;
 
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
@@ -213,23 +188,28 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في <#${channel.id}>...`, components: [stopButton], flags: 64 });
+        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في جميع الروومات...`, components: [stopButton], flags: 64 });
 
         let sent = 0;
         while (activeOperations.get(opId)) {
-            try {
-                const msgOptions = {};
-                if (message) msgOptions.content = message;
-                if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
-                await channel.send(msgOptions);
-                sent++;
-            } catch (e) { break; }
-            await new Promise(r => setTimeout(r, 100));
+            const channels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
+            for (const channel of channels.values()) {
+                if (!activeOperations.get(opId)) break;
+                try {
+                    const msgOptions = {};
+                    if (message) msgOptions.content = message;
+                    if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
+                    await channel.send(msgOptions);
+                    sent++;
+                } catch (e) {}
+                await new Promise(r => setTimeout(r, 100));
+            }
         }
         activeOperations.delete(opId);
         try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
 
+    // ===== باند =====
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
@@ -241,6 +221,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
     }
 
+    // ===== باند جماعي =====
     else if (commandName === 'mass-ban') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
@@ -256,6 +237,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
     }
 
+    // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
