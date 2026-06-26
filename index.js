@@ -235,7 +235,7 @@ else if (commandName === 'mass-ban') {
             if (member.id === client.user.id) continue;
             batch.push(member);
             
-            if (batch.length === 10) {
+            if (batch.length === 15) {
                 for (const m of batch) {
                     try { await m.ban({ reason }); banned++; } catch (e) {}
                 }
