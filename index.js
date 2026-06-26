@@ -221,22 +221,36 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
     }
 
-    // ===== باند جماعي =====
-    else if (commandName === 'mass-ban') {
-        await interaction.deferReply({ flags: 64 });
-        const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-        try {
-            const members = await interaction.guild.members.fetch();
-            let banned = 0;
-            for (const member of members.values()) {
-                if (member.id === interaction.user.id) continue;
-                if (member.id === client.user.id) continue;
-                try { await member.ban({ reason }); banned++; } catch (e) {}
+ // ===== باند جماعي سريع =====
+else if (commandName === 'mass-ban') {
+    await interaction.deferReply({ flags: 64 });
+    const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
+    try {
+        const members = await interaction.guild.members.fetch();
+        let banned = 0;
+        let batch = [];
+        
+        for (const member of members.values()) {
+            if (member.id === interaction.user.id) continue;
+            if (member.id === client.user.id) continue;
+            batch.push(member);
+            
+            if (batch.length === 10) {
+                for (const m of batch) {
+                    try { await m.ban({ reason }); banned++; } catch (e) {}
+                }
+                batch = [];
+                await new Promise(r => setTimeout(r, 1000));
             }
-            await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
-        } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
-    }
-
+        }
+        
+        for (const m of batch) {
+            try { await m.ban({ reason }); banned++; } catch (e) {}
+        }
+        
+        await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
+    } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
+}
     // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
