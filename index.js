@@ -18,7 +18,11 @@ const activeOperations = new Map();
 const commands = [
     new SlashCommandBuilder()
         .setName('delete-rooms')
-        .setDescription('حذف جميع الروومات في السيرفر')
+        .setDescription('حذف جميع الروومات في السيرفر مع خيار الحفاظ على روم واحد')
+        .addChannelOption(option =>
+            option.setName('keep-room')
+                .setDescription('الروم اللي تبي تحافظ عليه (اختياري)')
+                .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
@@ -132,12 +136,18 @@ client.on('interactionCreate', async (interaction) => {
     // ===== حذف جميع الروومات =====
     if (commandName === 'delete-rooms') {
         await interaction.deferReply({ flags: 64 });
+        const keepRoom = interaction.options.getChannel('keep-room');
         const channels = interaction.guild.channels.cache;
         let deleted = 0;
         for (const channel of channels.values()) {
+            // تخطي الروم المحدد للحفاظ عليه
+            if (keepRoom && channel.id === keepRoom.id) {
+                continue;
+            }
             try { await channel.delete(); deleted++; } catch (e) {}
         }
-        await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.`);
+        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${keepRoom.name})` : '';
+        await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.${keepMsg}`);
     }
 
     // ===== إضافة روومات =====
@@ -221,36 +231,37 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
     }
 
- // ===== باند جماعي سريع =====
-else if (commandName === 'mass-ban') {
-    await interaction.deferReply({ flags: 64 });
-    const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-    try {
-        const members = await interaction.guild.members.fetch();
-        let banned = 0;
-        let batch = [];
-        
-        for (const member of members.values()) {
-            if (member.id === interaction.user.id) continue;
-            if (member.id === client.user.id) continue;
-            batch.push(member);
+    // ===== باند جماعي سريع =====
+    else if (commandName === 'mass-ban') {
+        await interaction.deferReply({ flags: 64 });
+        const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
+        try {
+            const members = await interaction.guild.members.fetch();
+            let banned = 0;
+            let batch = [];
             
-            if (batch.length === 15) {
-                for (const m of batch) {
-                    try { await m.ban({ reason }); banned++; } catch (e) {}
+            for (const member of members.values()) {
+                if (member.id === interaction.user.id) continue;
+                if (member.id === client.user.id) continue;
+                batch.push(member);
+                
+                if (batch.length === 15) {
+                    for (const m of batch) {
+                        try { await m.ban({ reason }); banned++; } catch (e) {}
+                    }
+                    batch = [];
+                    await new Promise(r => setTimeout(r, 1000));
                 }
-                batch = [];
-                await new Promise(r => setTimeout(r, 1000));
             }
-        }
-        
-        for (const m of batch) {
-            try { await m.ban({ reason }); banned++; } catch (e) {}
-        }
-        
-        await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
-    } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
-}
+            
+            for (const m of batch) {
+                try { await m.ban({ reason }); banned++; } catch (e) {}
+            }
+            
+            await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
+        } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
+    }
+
     // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
