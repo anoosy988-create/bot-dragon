@@ -173,7 +173,7 @@ client.on('interactionCreate', async (interaction) => {
                 await interaction.guild.channels.create({ name, type: ChannelType.GuildText });
                 created++;
             } catch (e) { break; }
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 100));
         }
         activeOperations.delete(opId);
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
