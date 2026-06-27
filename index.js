@@ -212,7 +212,7 @@ client.on('interactionCreate', async (interaction) => {
                     await channel.send(msgOptions);
                     sent++;
                 } catch (e) {}
-                await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 100));
             }
         }
         activeOperations.delete(opId);
