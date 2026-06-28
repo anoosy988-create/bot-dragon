@@ -1,8 +1,12 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+const CATEGORY_ID = process.env.CATEGORY_ID;
 const OWNER_ID = '1452136095788564614';
 
 const client = new Client({
@@ -10,319 +14,268 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent,
     ]
 });
 
-const activeOperations = new Map();
+// ملف تخزين الخيارات
+const CONFIG_FILE = 'ticket-options.json';
+
+function loadConfig() {
+    if (fs.existsSync(CONFIG_FILE)) {
+        return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+    return {
+        options: [
+            { name: 'استفسار', value: 'استفسار' },
+            { name: 'شكوى', value: 'شكوى' },
+            { name: 'طلب رتبة', value: 'طلب-رتبة' },
+            { name: 'طلب برمجة', value: 'طلب-برمجة' }
+        ]
+    };
+}
+
+function saveConfig(config) {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
+let config = loadConfig();
+const tickets = new Map();
+let ticketCounter = 0;
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('delete-rooms')
-        .setDescription('حذف جميع الروومات في السيرفر مع خيار الحفاظ على روم واحد')
+        .setName('ticket')
+        .setDescription('فتح تكت جديد')
+        .addStringOption(option =>
+            option
+                .setName('type')
+                .setDescription('نوع التكت')
+                .setRequired(true)
+                .addChoices(
+                    config.options.map(opt => ({
+                        name: opt.name,
+                        value: opt.value
+                    }))
+                )),
+
+    new SlashCommandBuilder()
+        .setName('تعديل-خيارات-التكت')
+        .setDescription('تعديل خيارات فتح التكت')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('setup-ticket')
+        .setDescription('إعداد نظام التكتات')
         .addChannelOption(option =>
-            option.setName('keep-room')
-                .setDescription('الروم اللي تبي تحافظ عليه (اختياري)')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('add-room')
-        .setDescription('إضافة روومات بشكل مستمر مع زر إيقاف')
-        .addStringOption(option =>
-            option.setName('name')
-                .setDescription('اسم الروم')
+            option
+                .setName('logs_channel')
+                .setDescription('قناة اللوقات')
                 .setRequired(true))
-        .addIntegerOption(option =>
-            option.setName('count')
-                .setDescription('عدد الروومات (اتركه فارغ للسبام المستمر)')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('spam')
-        .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('النص المراد إرساله')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('image')
-                .setDescription('رابط الصورة')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('ban')
-        .setDescription('باند عضو من السيرفر')
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('العضو المراد بانه')
-                .setRequired(true))
-        .addIntegerOption(option =>
-            option.setName('days')
-                .setDescription('عدد أيام حذف الرسائل (0-7)')
-                .setMinValue(0)
-                .setMaxValue(7)
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('reason')
-                .setDescription('سبب الباند')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
-
-    new SlashCommandBuilder()
-        .setName('mass-ban')
-        .setDescription('باند جميع الأعضاء في السيرفر')
-        .addStringOption(option =>
-            option.setName('reason')
-                .setDescription('سبب الباند (اختياري)')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('delete-roles')
-        .setDescription('حذف جميع الرولات في السيرفر')
-        .addStringOption(option =>
-            option.setName('reason')
-                .setDescription('سبب الحذف (اختياري)')
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('change-server-name')
-        .setDescription('تغيير اسم السيرفر')
-        .addStringOption(option =>
-            option.setName('name')
-                .setDescription('الاسم الجديد للسيرفر')
-                .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    new SlashCommandBuilder()
-        .setName('change-server-icon')
-        .setDescription('تغيير أيقونة السيرفر')
-        .addStringOption(option =>
-            option.setName('icon-url')
-                .setDescription('رابط الصورة الجديدة')
+        .addRoleOption(option =>
+            option
+                .setName('staff_role')
+                .setDescription('رتبة المشرفين')
                 .setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map(command => command.toJSON());
 
+const { REST, Routes } = require('discord.js');
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
-async function registerCommands(guildId) {
+async function registerCommands() {
     try {
         console.log('جاري تسجيل الأوامر...');
         await rest.put(
-            Routes.applicationGuildCommands(CLIENT_ID, guildId),
+            Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
             { body: commands }
         );
-        console.log('تم تسجيل الأوامر بنجاح!');
+        console.log('✅ تم تسجيل الأوامر بنجاح!');
     } catch (error) {
-        console.error('خطأ في تسجيل الأوامر:', error);
+        console.error('❌ خطأ في تسجيل الأوامر:', error);
     }
 }
 
 client.once('ready', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
-    for (const guild of client.guilds.cache.values()) {
-        await registerCommands(guild.id);
-    }
+    await registerCommands();
 });
 
 client.on('interactionCreate', async (interaction) => {
-
+    // معالجة الأزرار
     if (interaction.isButton()) {
-        if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ ليس لديك صلاحية.', flags: 64 });
-        }
-        const opId = interaction.customId.replace('stop_', '');
-        if (activeOperations.has(opId)) {
-            activeOperations.set(opId, false);
-            await interaction.update({ content: '🛑 تم إيقاف العملية!', components: [] });
+        if (interaction.customId.startsWith('close_ticket_')) {
+            const ticketId = interaction.customId.replace('close_ticket_', '');
+            const ticketData = tickets.get(ticketId);
+
+            if (!ticketData) {
+                return interaction.reply({ content: '❌ لم يتم العثور على التكت', ephemeral: true });
+            }
+
+            // التحقق من الصلاحيات
+            if (interaction.user.id !== ticketData.owner && !interaction.member.roles.cache.has(ticketData.staffRoleId)) {
+                return interaction.reply({ content: '❌ فقط صاحب التكت أو المشرفون يمكنهم إغلاق التكت', ephemeral: true });
+            }
+
+            try {
+                await interaction.channel.delete();
+                tickets.delete(ticketId);
+            } catch (e) {
+                await interaction.reply({ content: '❌ حدث خطأ أثناء إغلاق التكت', ephemeral: true });
+            }
         }
         return;
     }
 
+    // معالجة الأوامر
     if (!interaction.isChatInputCommand()) return;
-
-    if (interaction.user.id !== OWNER_ID) {
-        return interaction.reply({ content: '❌ هذا البوت خاص ولا يمكنك استخدامه.', flags: 64 });
-    }
 
     const { commandName } = interaction;
 
-    // ===== حذف جميع الروومات =====
-    if (commandName === 'delete-rooms') {
+    // أمر فتح التكت
+    if (commandName === 'ticket') {
         await interaction.deferReply({ flags: 64 });
-        const keepRoom = interaction.options.getChannel('keep-room');
-        const channels = interaction.guild.channels.cache;
-        let deleted = 0;
-        for (const channel of channels.values()) {
-            // تخطي الروم المحدد للحفاظ عليه
-            if (keepRoom && channel.id === keepRoom.id) {
-                continue;
-            }
-            try { await channel.delete(); deleted++; } catch (e) {}
-        }
-        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${keepRoom.name})` : '';
-        await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.${keepMsg}`);
-    }
+        
+        const type = interaction.options.getString('type');
+        const userId = interaction.user.id;
+        const userName = interaction.user.username;
+        
+        ticketCounter++;
+        const ticketId = `ticket_${ticketCounter}`;
 
-    // ===== إضافة روومات =====
-    else if (commandName === 'add-room') {
-        const name = interaction.options.getString('name');
-        const count = interaction.options.getInteger('count');
-        const opId = `addroom_${interaction.id}`;
-        activeOperations.set(opId, true);
-
-        const stopButton = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`stop_${opId}`)
-                .setLabel('🛑 إيقاف')
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        await interaction.reply({ content: `⚙️ جاري إنشاء الروومات...`, components: [stopButton], flags: 64 });
-
-        let created = 0;
-        const limit = count || Infinity;
-        while (activeOperations.get(opId) && created < limit) {
-            try {
-                await interaction.guild.channels.create({ name, type: ChannelType.GuildText });
-                created++;
-            } catch (e) { break; }
-            await new Promise(r => setTimeout(r, 100));
-        }
-        activeOperations.delete(opId);
-        try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
-    }
-
-    // ===== سبام في جميع الروومات =====
-    else if (commandName === 'spam') {
-        const message = interaction.options.getString('message');
-        const imageUrl = interaction.options.getString('image');
-
-        if (!message && !imageUrl) {
-            return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
-        }
-
-        const opId = `spam_${interaction.id}`;
-        activeOperations.set(opId, true);
-
-        const stopButton = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`stop_${opId}`)
-                .setLabel('🛑 إيقاف')
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في جميع الروومات...`, components: [stopButton], flags: 64 });
-
-        let sent = 0;
-        while (activeOperations.get(opId)) {
-            const channels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
-            for (const channel of channels.values()) {
-                if (!activeOperations.get(opId)) break;
-                try {
-                    const msgOptions = {};
-                    if (message) msgOptions.content = message;
-                    if (imageUrl) msgOptions.embeds = [{ image: { url: imageUrl } }];
-                    await channel.send(msgOptions);
-                    sent++;
-                } catch (e) {}
-                await new Promise(r => setTimeout(r, 100));
-            }
-        }
-        activeOperations.delete(opId);
-        try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
-    }
-
-    // ===== باند =====
-    else if (commandName === 'ban') {
-        await interaction.deferReply({ flags: 64 });
-        const user = interaction.options.getUser('user');
-        const days = interaction.options.getInteger('days') ?? 0;
-        const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
         try {
-            await interaction.guild.members.ban(user, { deleteMessageDays: days, reason });
-            await interaction.editReply(`✅ تم باند **${user.tag}** | السبب: ${reason} | حذف رسائل: ${days} يوم`);
-        } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
-    }
+            const channel = await interaction.guild.channels.create({
+                name: `تكت-${ticketCounter}`,
+                type: 0,
+                parent: CATEGORY_ID,
+                permissionOverwrites: [
+                    {
+                        id: interaction.guild.id,
+                        deny: ['ViewChannel'],
+                    },
+                    {
+                        id: userId,
+                        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'],
+                    },
+                    {
+                        id: config.staffRoleId,
+                        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'ManageChannels'],
+                    },
+                ],
+            });
 
-    // ===== باند جماعي سريع =====
-    else if (commandName === 'mass-ban') {
-        await interaction.deferReply({ flags: 64 });
-        const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-        try {
-            const members = await interaction.guild.members.fetch();
-            let banned = 0;
-            let batch = [];
-            
-            for (const member of members.values()) {
-                if (member.id === interaction.user.id) continue;
-                if (member.id === client.user.id) continue;
-                batch.push(member);
-                
-                if (batch.length === 15) {
-                    for (const m of batch) {
-                        try { await m.ban({ reason }); banned++; } catch (e) {}
-                    }
-                    batch = [];
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-            }
-            
-            for (const m of batch) {
-                try { await m.ban({ reason }); banned++; } catch (e) {}
-            }
-            
-            await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
-        } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
-    }
+            tickets.set(ticketId, {
+                id: ticketId,
+                channelId: channel.id,
+                owner: userId,
+                type: type,
+                staffRoleId: config.staffRoleId,
+                createdAt: new Date().toISOString(),
+            });
 
-    // ===== حذف جميع الرولات =====
-    else if (commandName === 'delete-roles') {
-        await interaction.deferReply({ flags: 64 });
-        const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-        const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone');
-        let deleted = 0;
-        for (const role of roles.values()) {
-            try { await role.delete(reason); deleted++; } catch (e) {}
-        }
-        await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
-    }
+            const closeButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`close_ticket_${ticketId}`)
+                    .setLabel('🔴 إغلاق التكت')
+                    .setStyle(ButtonStyle.Danger)
+            );
 
-    // ===== تغيير اسم السيرفر =====
-    else if (commandName === 'change-server-name') {
-        await interaction.deferReply({ flags: 64 });
-        const newName = interaction.options.getString('name');
-        try {
-            await interaction.guild.setName(newName);
-            await interaction.editReply(`✅ تم تغيير اسم السيرفر إلى: **${newName}**`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل تغيير الاسم: ${e.message}`);
+            const embed = new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle(`🎫 تكت رقم #${ticketCounter}`)
+                .setDescription(`مرحباً ${interaction.user}، سيقوم أحد المشرفين بخدمتك قريباً.`)
+                .addFields(
+                    { name: '📝 نوع التكت', value: type, inline: true },
+                    { name: '👤 صاحب التكت', value: `${userName}`, inline: true },
+                    { name: '📅 التاريخ', value: new Date().toLocaleString('ar-SA'), inline: false }
+                )
+                .setFooter({ text: `التكت #${ticketCounter}` });
+
+            // منشن المشرفين
+            await channel.send(`<@&${config.staffRoleId}>`);
+            await channel.send({ embeds: [embed], components: [closeButton] });
+
+            await interaction.editReply(`✅ تم فتح التكت: ${channel}`);
+
+        } catch (error) {
+            await interaction.editReply(`❌ فشل فتح التكت: ${error.message}`);
         }
     }
 
-    // ===== تغيير أيقونة السيرفر =====
-    else if (commandName === 'change-server-icon') {
-        await interaction.deferReply({ flags: 64 });
-        const iconUrl = interaction.options.getString('icon-url');
-        try {
-            await interaction.guild.setIcon(iconUrl);
-            await interaction.editReply(`✅ تم تغيير أيقونة السيرفر بنجاح!`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل تغيير الأيقونة: ${e.message}`);
+    // أمر تعديل الخيارات
+    else if (commandName === 'تعديل-خيارات-التكت') {
+        if (interaction.user.id !== OWNER_ID && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: '❌ ليس لديك صلاحية', ephemeral: true });
         }
+
+        const modal = new ModalBuilder()
+            .setCustomId('edit_options_modal')
+            .setTitle('تعديل خيارات التكت');
+
+        const optionsInput = new TextInputBuilder()
+            .setCustomId('options_input')
+            .setLabel('الخيارات (كل خيار في سطر)')
+            .setStyle(TextInputStyle.Paragraph)
+            .setValue(config.options.map(opt => opt.name).join('\n'))
+            .setPlaceholder('استفسار\nشكوى\nطلب رتبة');
+
+        modal.addComponents(new ActionRowBuilder().addComponents(optionsInput));
+        await interaction.showModal(modal);
+    }
+
+    // أمر الإعداد
+    else if (commandName === 'setup-ticket') {
+        const logsChannel = interaction.options.getChannel('logs_channel');
+        const staffRole = interaction.options.getRole('staff_role');
+
+        config.logsChannelId = logsChannel.id;
+        config.staffRoleId = staffRole.id;
+        saveConfig(config);
+
+        const embed = new EmbedBuilder()
+            .setTitle('✅ تم إعداد نظام التكتات')
+            .setColor(0x00FF00)
+            .addFields(
+                { name: '📋 قناة اللوقات', value: `${logsChannel}`, inline: true },
+                { name: '👥 رتبة المشرفين', value: `${staffRole.name}`, inline: true }
+            );
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 });
 
-// ===== سيرفر HTTP لـ Render =====
-http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.PORT || 3000);
+// معالجة Modal
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isModalSubmit()) return;
 
-// ===== Keep Alive =====
-setInterval(() => {
-    fetch('https://bot-dragon.onrender.com').catch(() => {});
-}, 4 * 60 * 1000);
+    if (interaction.customId === 'edit_options_modal') {
+        const optionsText = interaction.fields.getTextInputValue('options_input');
+        const newOptions = optionsText
+            .split('\n')
+            .filter(line => line.trim())
+            .map((name, index) => ({
+                name: name.trim(),
+                value: name.trim().toLowerCase().replace(/\s+/g, '-')
+            }));
+
+        if (newOptions.length === 0) {
+            return interaction.reply({ content: '❌ لازم تضيف خيار واحد على الأقل', ephemeral: true });
+        }
+
+        config.options = newOptions;
+        saveConfig(config);
+
+        const embed = new EmbedBuilder()
+            .setTitle('✅ تم تحديث الخيارات')
+            .setColor(0x00FF00)
+            .setDescription('الخيارات الجديدة:\n' + newOptions.map(opt => `• ${opt.name}`).join('\n'));
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+});
+
+// سيرفر HTTP
+http.createServer((req, res) => res.end('Ticket Bot is running!')).listen(process.env.PORT || 3000);
 
 client.login(TOKEN);
