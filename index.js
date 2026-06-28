@@ -87,6 +87,24 @@ const commands = [
                 .setDescription('سبب الحذف (اختياري)')
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('change-server-name')
+        .setDescription('تغيير اسم السيرفر')
+        .addStringOption(option =>
+            option.setName('name')
+                .setDescription('الاسم الجديد للسيرفر')
+                .setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    new SlashCommandBuilder()
+        .setName('change-server-icon')
+        .setDescription('تغيير أيقونة السيرفر')
+        .addStringOption(option =>
+            option.setName('icon-url')
+                .setDescription('رابط الصورة الجديدة')
+                .setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -212,7 +230,7 @@ client.on('interactionCreate', async (interaction) => {
                     await channel.send(msgOptions);
                     sent++;
                 } catch (e) {}
-      await new Promise(r => setTimeout(r, 100));
+                await new Promise(r => setTimeout(r, 100));
             }
         }
         activeOperations.delete(opId);
@@ -272,6 +290,30 @@ client.on('interactionCreate', async (interaction) => {
             try { await role.delete(reason); deleted++; } catch (e) {}
         }
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
+    }
+
+    // ===== تغيير اسم السيرفر =====
+    else if (commandName === 'change-server-name') {
+        await interaction.deferReply({ flags: 64 });
+        const newName = interaction.options.getString('name');
+        try {
+            await interaction.guild.setName(newName);
+            await interaction.editReply(`✅ تم تغيير اسم السيرفر إلى: **${newName}**`);
+        } catch (e) {
+            await interaction.editReply(`❌ فشل تغيير الاسم: ${e.message}`);
+        }
+    }
+
+    // ===== تغيير أيقونة السيرفر =====
+    else if (commandName === 'change-server-icon') {
+        await interaction.deferReply({ flags: 64 });
+        const iconUrl = interaction.options.getString('icon-url');
+        try {
+            await interaction.guild.setIcon(iconUrl);
+            await interaction.editReply(`✅ تم تغيير أيقونة السيرفر بنجاح!`);
+        } catch (e) {
+            await interaction.editReply(`❌ فشل تغيير الأيقونة: ${e.message}`);
+        }
     }
 });
 
