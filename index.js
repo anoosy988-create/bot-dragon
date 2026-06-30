@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const http = require('http');
 
 const TOKEN = process.env.TOKEN;
@@ -38,11 +38,6 @@ const commands = [
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-                .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-
     new SlashCommandBuilder()
         .setName('spam')
         .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
@@ -54,55 +49,7 @@ const commands = [
             option.setName('image')
                 .setDescription('رابط الصورة')
                 .setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-];
-
-        .addStringOption(option =>
-            option.setName('image')
-                .setDescription('رابط الصورة')
-                .setRequired(false))
-        .setDefaultMemberPermissions(
-
-        const stopButton = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('stop_spam')
-                .setLabel('إيقاف السبام')
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        await interaction.reply({ content: 'جاري البدء في الإرسال...', ephemeral: true });
-
-        const channels = interaction.guild.channels.cache.filter(c => c.isTextBased());
-        let stop = false;
-
-        const collector = interaction.channel.createMessageComponentCollector({ time: 600000 });
-
-        collector.on('collect', async i => {
-            if (i.customId === 'stop_spam') {
-                stop = true;
-                await i.reply({ content: 'تم إيقاف عملية الإرسال.', ephemeral: true });
-                collector.stop();
-            }
-        });
-
-        for (const [id, channel] of channels) {
-            if (stop) break;
-
-            try {
-                const embed = new EmbedBuilder().setDescription(messageText);
-                if (imageUrl) embed.setImage(imageUrl);
-
-                await channel.send({ 
-                    content: messageText, 
-                    embeds: imageUrl ? [embed] : [], 
-                    components: [stopButton] 
-                });
-            } catch (err) {
-                console.error(`تعذر الإرسال في القناة ${id}:`, err);
-            }
-        }
-    },
-};
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     new SlashCommandBuilder()
         .setName('ban')
@@ -377,19 +324,5 @@ http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.P
 setInterval(() => {
     fetch('https://bot-dragon.onrender.com').catch(() => {});
 }, 4 * 60 * 1000);
-// أضف هذا السطر فوق، تحت تعريف slashCommands (أو انسخ مصفوفة أوامرك هنا)
-const slashCommands = [
-    // ضع هنا نفس مصفوفة الأوامر اللي عندك بالبوت
-];
-
-// أضف هذا الحدث في أي مكان بعد تعريف client
-client.on('guildCreate', async (guild) => {
-    try {
-        await guild.commands.set(slashCommands);
-        console.log(`✅ تم تسجيل الأوامر فوراً في السيرفر الجديد: ${guild.name}`);
-    } catch (e) {
-        console.error(`❌ فشل تسجيل الأوامر في ${guild.name}:`, e.message);
-    }
-});
 
 client.login(TOKEN);
