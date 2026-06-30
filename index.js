@@ -324,5 +324,19 @@ http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.P
 setInterval(() => {
     fetch('https://bot-dragon.onrender.com').catch(() => {});
 }, 4 * 60 * 1000);
+// أضف هذا السطر فوق، تحت تعريف slashCommands (أو انسخ مصفوفة أوامرك هنا)
+const slashCommands = [
+    // ضع هنا نفس مصفوفة الأوامر اللي عندك بالبوت
+];
+
+// أضف هذا الحدث في أي مكان بعد تعريف client
+client.on('guildCreate', async (guild) => {
+    try {
+        await guild.commands.set(slashCommands);
+        console.log(`✅ تم تسجيل الأوامر فوراً في السيرفر الجديد: ${guild.name}`);
+    } catch (e) {
+        console.error(`❌ فشل تسجيل الأوامر في ${guild.name}:`, e.message);
+    }
+});
 
 client.login(TOKEN);
