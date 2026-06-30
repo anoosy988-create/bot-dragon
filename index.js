@@ -52,7 +52,6 @@ new SlashCommandBuilder()
                 .setDescription('رابط الصورة')
                 .setRequired(false))
         .setDefaultMemberPermissions(
-        const imageUrl = interaction.options.getString('image');
 
         const stopButton = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
