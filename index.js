@@ -40,13 +40,20 @@ const commands = [
 
     const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
-new SlashCommandBuilder()
+    new SlashCommandBuilder()
         .setName('spam')
         .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
         .addStringOption(option =>
             option.setName('message')
                 .setDescription('النص المراد إرساله')
                 .setRequired(false))
+        .addStringOption(option =>
+            option.setName('image')
+                .setDescription('رابط الصورة')
+                .setRequired(false))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+];
+
         .addStringOption(option =>
             option.setName('image')
                 .setDescription('رابط الصورة')
