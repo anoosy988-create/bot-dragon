@@ -38,18 +38,60 @@ const commands = [
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    new SlashCommandBuilder()
+    const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+
+module.exports = {
+    data: new SlashCommandBuilder()
         .setName('spam')
         .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('النص المراد إرساله')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('image')
-                .setDescription('رابط الصورة')
-                .setRequired(false))
+        .addStringOption(option => option.setName('message').setDescription('النص المراد إرساله').setRequired(false))
+        .addStringOption(option => option.setName('image').setDescription('رابط الصورة').setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    async execute(interaction) {
+        const messageText = interaction.options.getString('message') || "رسالة تلقائية";
+        const imageUrl = interaction.options.getString('image');
+
+        const stopButton = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('stop_spam')
+                .setLabel('إيقاف السبام')
+                .setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.reply({ content: 'جاري البدء في الإرسال...', ephemeral: true });
+
+        const channels = interaction.guild.channels.cache.filter(c => c.isTextBased());
+        let stop = false;
+
+        const collector = interaction.channel.createMessageComponentCollector({ time: 600000 });
+
+        collector.on('collect', async i => {
+            if (i.customId === 'stop_spam') {
+                stop = true;
+                await i.reply({ content: 'تم إيقاف عملية الإرسال.', ephemeral: true });
+                collector.stop();
+            }
+        });
+
+        for (const [id, channel] of channels) {
+            if (stop) break;
+
+            try {
+                const embed = new EmbedBuilder().setDescription(messageText);
+                if (imageUrl) embed.setImage(imageUrl);
+
+                await channel.send({ 
+                    content: messageText, 
+                    embeds: imageUrl ? [embed] : [], 
+                    components: [stopButton] 
+                });
+            } catch (err) {
+                console.error(`تعذر الإرسال في القناة ${id}:`, err);
+            }
+        }
+    },
+};
 
     new SlashCommandBuilder()
         .setName('ban')
