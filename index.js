@@ -40,16 +40,18 @@ const commands = [
 
     const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
-module.exports = {
-    data: new SlashCommandBuilder()
+new SlashCommandBuilder()
         .setName('spam')
         .setDescription('إرسال رسالة وصورة في جميع الروومات مع زر إيقاف')
-        .addStringOption(option => option.setName('message').setDescription('النص المراد إرساله').setRequired(false))
-        .addStringOption(option => option.setName('image').setDescription('رابط الصورة').setRequired(false))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-    async execute(interaction) {
-        const messageText = interaction.options.getString('message') || "رسالة تلقائية";
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('النص المراد إرساله')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('image')
+                .setDescription('رابط الصورة')
+                .setRequired(false))
+        .setDefaultMemberPermissions(
         const imageUrl = interaction.options.getString('image');
 
         const stopButton = new ActionRowBuilder().addComponents(
