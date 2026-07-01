@@ -129,8 +129,8 @@ async function registerCommands(guildId) {
     }
 }
 
-// ===== READY =====
-client.once('ready', async () => {
+// ===== clientReady =====
+client.once('clientReady', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
     console.log(`📊 عدد السيرفرات: ${client.guilds.cache.size}`);
     
@@ -138,22 +138,21 @@ client.once('ready', async () => {
         await registerCommands(guild.id);
     }
     
-    // ===== فحص دوري كل 5 ثواني =====
+    // فحص دوري كل 5 ثواني
     setInterval(async () => {
         for (const guild of client.guilds.cache.values()) {
             if (!registeredGuilds.has(guild.id)) {
-                console.log(`🆕 سيرفر جديد: ${guild.name}`);
+                console.log(`🆕 سيرفر جديد (فحص): ${guild.name}`);
                 await registerCommands(guild.id);
             }
         }
     }, 5 * 1000);
-    
-    console.log('🔄 الفحص الدوري مفعل (كل 5 ثواني)');
 });
 
-// ===== GUILD CREATE (احتياطي سريع) =====
+// ===== guildCreate =====
 client.on('guildCreate', async (guild) => {
-    console.log(`🆕 [guildCreate] انضمام: ${guild.name}`);
+    console.log(`🆕 [guildCreate] انضمام: ${guild.name} (${guild.id})`);
+    await new Promise(r => setTimeout(r, 3000));
     await registerCommands(guild.id);
 });
 
@@ -187,6 +186,7 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const { commandName } = interaction;
 
+    // ===== حذف الروومات =====
     if (commandName === 'delete-rooms') {
         await interaction.deferReply({ flags: 64 });
         const keepRoom = interaction.options.getChannel('keep-room');
@@ -196,10 +196,12 @@ client.on('interactionCreate', async (interaction) => {
             if (keepRoom && channel.id === keepRoom.id) continue;
             try { await channel.delete(); deleted++; } catch (e) {}
         }
-        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${guild.name})` : '';
+        // ✅ تم التصحيح: استخدم keepRoom.name بدل guild.name
+        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${keepRoom.name})` : '';
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.${keepMsg}`);
     }
 
+    // ===== إضافة روومات =====
     else if (commandName === 'add-room') {
         const name = interaction.options.getString('name');
         const count = interaction.options.getInteger('count');
@@ -228,6 +230,7 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
+    // ===== سبام =====
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
@@ -265,6 +268,7 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
 
+    // ===== باند =====
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
@@ -276,6 +280,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
+    // ===== باند جماعي =====
     else if (commandName === 'mass-ban') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
@@ -301,6 +306,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
+    // ===== حذف رولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
@@ -312,6 +318,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
     }
 
+    // ===== تغيير اسم السيرفر =====
     else if (commandName === 'change-server-name') {
         await interaction.deferReply({ flags: 64 });
         const newName = interaction.options.getString('name');
@@ -321,6 +328,7 @@ client.on('interactionCreate', async (interaction) => {
         } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
+    // ===== تغيير أيقونة السيرفر =====
     else if (commandName === 'change-server-icon') {
         await interaction.deferReply({ flags: 64 });
         const iconUrl = interaction.options.getString('icon-url');
