@@ -122,7 +122,7 @@ async function registerCommands(guildId) {
     }
 }
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
     for (const guild of client.guilds.cache.values()) {
         await registerCommands(guild.id);
