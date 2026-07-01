@@ -324,5 +324,14 @@ http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.P
 setInterval(() => {
     fetch('https://bot-dragon.onrender.com').catch(() => {});
 }, 4 * 60 * 1000);
+client.on('guildCreate', () => {});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ [Anti-Crash]:', reason);
+});
+
+process.on("uncaughtException", (err) => {
+    console.error('❌ [Anti-Crash]:', err);
+});
 
 client.login(TOKEN);
