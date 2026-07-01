@@ -333,5 +333,22 @@ process.on('unhandledRejection', (reason) => {
 process.on("uncaughtException", (err) => {
     console.error('❌ [Anti-Crash]:', err);
 });
+const { REST, Routes } = require('discord.js');
+
+client.on('guildCreate', async (guild) => {
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.TOKEN || client.token);
+        
+        // هنا نرفع الأوامر فوراً للسيرفر الجديد الذي دخل إليه البوت
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, guild.id),
+            { body: client.commands.map(cmd => cmd.data.toJSON()) } // تأكد من طريقة تخزين الأوامر عندك
+        );
+        
+        console.log(`✅ تم تفعيل أوامر السلاش بنجاح في سيرفر: ${guild.name}`);
+    } catch (error) {
+        console.error('❌ فشل رفع الأوامر للسيرفر الجديد:', error);
+    }
+});
 
 client.login(TOKEN);
