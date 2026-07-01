@@ -111,30 +111,58 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 async function registerCommands(guildId) {
     try {
-        console.log('جاري تسجيل الأوامر...');
+        console.log(`جاري تسجيل الأوامر في السيرفر: ${guildId}...`);
         await rest.put(
             Routes.applicationGuildCommands(CLIENT_ID, guildId),
             { body: commands }
         );
-        console.log('تم تسجيل الأوامر بنجاح!');
+        console.log(`✅ تم تسجيل الأوامر بنجاح في السيرفر: ${guildId}!`);
     } catch (error) {
-        console.error('خطأ في تسجيل الأوامر:', error);
+        console.error(`❌ خطأ في تسجيل الأوامر في السيرفر ${guildId}:`, error);
     }
 }
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
+    
+    // تسجيل الأوامر في جميع السيرفرات الموجودة
     for (const guild of client.guilds.cache.values()) {
         await registerCommands(guild.id);
     }
 });
 
+// ===== تسجيل الأوامر تلقائياً لما البوت يدخل سيرفر جديد =====
+client.on('guildCreate', async (guild) => {
+    try {
+        console.log(`🆕 البوت انضم لسيرفر جديد: ${guild.name} (${guild.id})`);
+        await registerCommands(guild.id);
+        console.log(`✅ تم تفعيل أوامر السلاش بنجاح في سيرفر: ${guild.name}`);
+    } catch (error) {
+        console.error(`❌ فشل رفع الأوامر للسيرفر الجديد ${guild.name}:`, error);
+    }
+});
+
+// ===== التحقق من المالك فقط =====
+function isOwner(userId) {
+    return userId === OWNER_ID;
+}
+
 client.on('interactionCreate', async (interaction) => {
 
+    // ===== التحقق من المالك لجميع التفاعلات (أزرار + أوامر) =====
+    if (interaction.user.id !== OWNER_ID) {
+        const replyMethod = interaction.replied || interaction.deferred 
+            ? 'followUp' 
+            : 'reply';
+        
+        return interaction[replyMethod]({ 
+            content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
+            flags: 64 
+        });
+    }
+
+    // ===== معالجة الأزرار =====
     if (interaction.isButton()) {
-        if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ ليس لديك صلاحية.', flags: 64 });
-        }
         const opId = interaction.customId.replace('stop_', '');
         if (activeOperations.has(opId)) {
             activeOperations.set(opId, false);
@@ -145,10 +173,6 @@ client.on('interactionCreate', async (interaction) => {
 
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.user.id !== OWNER_ID) {
-        return interaction.reply({ content: '❌ هذا البوت خاص ولا يمكنك استخدامه.', flags: 64 });
-    }
-
     const { commandName } = interaction;
 
     // ===== حذف جميع الروومات =====
@@ -158,10 +182,7 @@ client.on('interactionCreate', async (interaction) => {
         const channels = interaction.guild.channels.cache;
         let deleted = 0;
         for (const channel of channels.values()) {
-            // تخطي الروم المحدد للحفاظ عليه
-            if (keepRoom && channel.id === keepRoom.id) {
-                continue;
-            }
+            if (keepRoom && channel.id === keepRoom.id) continue;
             try { await channel.delete(); deleted++; } catch (e) {}
         }
         const keepMsg = keepRoom ? ` (تم الحفاظ على: ${keepRoom.name})` : '';
@@ -324,7 +345,6 @@ http.createServer((req, res) => res.end('Bot is running!')).listen(process.env.P
 setInterval(() => {
     fetch('https://bot-dragon.onrender.com').catch(() => {});
 }, 4 * 60 * 1000);
-client.on('guildCreate', () => {});
 
 process.on('unhandledRejection', (reason) => {
     console.error('❌ [Anti-Crash]:', reason);
@@ -333,6 +353,5 @@ process.on('unhandledRejection', (reason) => {
 process.on("uncaughtException", (err) => {
     console.error('❌ [Anti-Crash]:', err);
 });
-const { REST, Routes } = require('discord.js');
 
 client.login(TOKEN);
