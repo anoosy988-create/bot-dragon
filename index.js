@@ -15,7 +15,7 @@ const client = new Client({
 });
 
 const activeOperations = new Map();
-const registeredGuilds = new Set(); // تتبع السيرفرات المسجلة
+const registeredGuilds = new Set();
 
 const commands = [
     new SlashCommandBuilder()
@@ -112,11 +112,7 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 async function registerCommands(guildId) {
-    // لو مسجل قبل، لا تسجل مرة ثانية
-    if (registeredGuilds.has(guildId)) {
-        console.log(`⏭️ السيرفر ${guildId} مسجل مسبقاً`);
-        return true;
-    }
+    if (registeredGuilds.has(guildId)) return true;
     
     try {
         console.log(`📝 جاري تسجيل الأوامر في: ${guildId}`);
@@ -138,28 +134,26 @@ client.once('ready', async () => {
     console.log(`✅ البوت شغال: ${client.user.tag}`);
     console.log(`📊 عدد السيرفرات: ${client.guilds.cache.size}`);
     
-    // تسجيل في جميع السيرفرات الموجودة
     for (const guild of client.guilds.cache.values()) {
         await registerCommands(guild.id);
     }
     
-    // ===== فحص دوري كل 30 ثانية للسيرفرات الجديدة =====
+    // ===== فحص دوري كل 5 ثواني =====
     setInterval(async () => {
-        console.log('🔍 فحص السيرفرات...');
         for (const guild of client.guilds.cache.values()) {
             if (!registeredGuilds.has(guild.id)) {
-                console.log(`🆕 سيرفر جديد detected: ${guild.name}`);
+                console.log(`🆕 سيرفر جديد: ${guild.name}`);
                 await registerCommands(guild.id);
             }
         }
-    }, 30 * 1000); // كل 30 ثانية
+    }, 5 * 1000);
     
-    console.log('🔄 الفحص الدوري مفعل (كل 30 ثانية)');
+    console.log('🔄 الفحص الدوري مفعل (كل 5 ثواني)');
 });
 
-// ===== GUILD CREATE (احتياطي) =====
+// ===== GUILD CREATE (احتياطي سريع) =====
 client.on('guildCreate', async (guild) => {
-    console.log(`🆕 [guildCreate] انضمام: ${guild.name} (${guild.id})`);
+    console.log(`🆕 [guildCreate] انضمام: ${guild.name}`);
     await registerCommands(guild.id);
 });
 
@@ -168,17 +162,11 @@ async function denyAccess(interaction) {
     if (interaction.user.id === OWNER_ID) return false;
     
     try {
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ 
-                content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
-                flags: 64 
-            });
-        } else {
-            await interaction.reply({ 
-                content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
-                flags: 64 
-            });
-        }
+        const method = interaction.replied || interaction.deferred ? 'followUp' : 'reply';
+        await interaction[method]({ 
+            content: '❌ هذا البوت خاص بـ <@' + OWNER_ID + '> فقط ولا يمكنك استخدامه.', 
+            flags: 64 
+        });
     } catch (e) {}
     return true;
 }
@@ -208,7 +196,7 @@ client.on('interactionCreate', async (interaction) => {
             if (keepRoom && channel.id === keepRoom.id) continue;
             try { await channel.delete(); deleted++; } catch (e) {}
         }
-        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${keepRoom.name})` : '';
+        const keepMsg = keepRoom ? ` (تم الحفاظ على: ${guild.name})` : '';
         await interaction.editReply(`✅ تم حذف **${deleted}** روم بنجاح.${keepMsg}`);
     }
 
@@ -347,22 +335,21 @@ client.on('interactionCreate', async (interaction) => {
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running on Railway!');
+    res.end('Bot is running!');
 }).listen(PORT, () => {
-    console.log(`🌐 HTTP Server شغال على البورت: ${PORT}`);
+    console.log(`🌐 HTTP Server: ${PORT}`);
 });
 
 // ===== Keep Alive =====
 const RAILWAY_URL = process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
 if (RAILWAY_URL) {
     setInterval(() => {
-        https.get(`https://${RAILWAY_URL}`, (res) => {}).on('error', () => {});
+        https.get(`https://${RAILWAY_URL}`, () => {}).on('error', () => {});
     }, 4 * 60 * 1000);
-    console.log(`🔄 Keep Alive مفعل`);
 }
 
 // ===== Anti Crash =====
-process.on('unhandledRejection', (reason) => console.error('❌ [Anti-Crash]:', reason));
-process.on("uncaughtException", (err) => console.error('❌ [Anti-Crash]:', err));
+process.on('unhandledRejection', (r) => console.error('❌ [Anti-Crash]:', r));
+process.on("uncaughtException", (e) => console.error('❌ [Anti-Crash]:', e));
 
 client.login(TOKEN);
